@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:ozn/src/core/constants/app_constants.dart';
 import 'package:ozn/src/presentation/pages/home/home_page.dart';
 
+// Enum pour les rôles utilisateur
+enum UserRole { passenger, driver, both }
+
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
 
@@ -22,21 +25,6 @@ class _RegisterPageState extends State<RegisterPage> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _passwordController = TextEditingController();
-
-  final List<Step> _steps = [
-    const Step(
-      title: Text('Rôle'),
-      content: SizedBox(), // Sera rempli dynamiquement
-    ),
-    const Step(
-      title: Text('Informations'),
-      content: SizedBox(),
-    ),
-    const Step(
-      title: Text('Sécurité'),
-      content: SizedBox(),
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -158,10 +146,14 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget _buildRoleOption(UserRole role, String title, String subtitle) {
     return Card(
       child: ListTile(
-        leading: Radio<UserRole>(
+        leading: Radio<UserRole>.adaptive(
           value: role,
           groupValue: _selectedRole,
-          onChanged: (value) => setState(() => _selectedRole = value!),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _selectedRole = value);
+            }
+          },
         ),
         title: Text(title),
         subtitle: Text(subtitle),
@@ -193,7 +185,7 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    if (_currentStep < _steps.length - 1) {
+    if (_currentStep < 2) { // 3 étapes (0, 1, 2)
       setState(() => _currentStep++);
     }
   }
@@ -207,13 +199,53 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   void _register() async {
-    // Simulation d'inscription
-    await Future.delayed(const Duration(seconds: 2));
+    // Vérification que le widget est toujours monté
+    if (!mounted) return;
     
-    // Redirection vers l'accueil
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const HomePage()),
+    // Validation du formulaire
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez corriger les erreurs du formulaire')),
+      );
+      return;
+    }
+
+    // Afficher un indicateur de chargement
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            CircularProgressIndicator.adaptive(),
+            SizedBox(width: 16),
+            Text('Création du compte en cours...'),
+        ],
+        ),
+        duration: Duration(seconds: 3),
+      ),
     );
+
+    try {
+      // Simulation d'inscription
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // Vérification que le widget est toujours monté avant la navigation
+      if (!mounted) return;
+      
+      // Nettoyer les SnackBars existants
+      ScaffoldMessenger.of(context).clearSnackBars();
+      
+      // Redirection vers l'accueil
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const HomePage()),
+      );
+    } catch (e) {
+      // Gestion d'erreur sécurisée
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   @override
