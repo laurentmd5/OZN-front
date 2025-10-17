@@ -25,7 +25,7 @@ pipeline {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/laurentmd5/OZN-front.git',
-                    credentialsId: 'github-token',
+                    credentialsId: 'my-token',
                     poll: false
 
                 sh '''
