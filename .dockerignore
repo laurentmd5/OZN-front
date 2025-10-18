@@ -1,0 +1,79 @@
+# Fichiers de build et cache
+build/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+
+# Fichiers Git
+.git/
+.gitignore
+.gitattributes
+
+# Fichiers IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation et tests
+test/
+test_driver/
+doc/
+docs/
+*.md
+README*
+LICENSE
+CHANGELOG*
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+azure-pipelines.yml
+bitbucket-pipelines.yml
+Jenkinsfile
+
+# Fichiers de configuration locaux
+.env
+.env.*
+*.local
+local.properties
+
+# Logs
+*.log
+logs/
+
+# Dépendances de développement
+node_modules/
+coverage/
+
+# Fichiers temporaires
+*.tmp
+*.temp
+*.cache
+
+# Fichiers de backup
+*.bak
+*.backup
+*.old
+*.orig
+
+# Fichiers système
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Android (non nécessaire pour web)
+android/
+ios/
+macos/
+linux/
+windows/
+
+# Autres
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+pubspec.lock
