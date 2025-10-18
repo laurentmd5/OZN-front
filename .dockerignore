@@ -76,4 +76,3 @@ windows/
 .flutter-plugins
 .flutter-plugins-dependencies
 .metadata
-pubspec.lock
