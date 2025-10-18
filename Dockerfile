@@ -22,27 +22,22 @@ RUN groupadd -r flutter && useradd -r -g flutter flutter
 USER flutter
 WORKDIR /home/flutter/app
 
-# Copie des fichiers du projet
+# Copie des fichiers du projet (SANS assets/ s'il n'existe pas)
 COPY --chown=flutter:flutter pubspec.yaml pubspec.yaml
 COPY --chown=flutter:flutter lib/ lib/
-COPY --chown=flutter:flutter assets/ assets/ 2>/dev/null || true
 
 # Résolution des dépendances
 RUN flutter pub get
 
 # Build Flutter web en mode release
 RUN flutter config --enable-web \
-    && flutter build web --release --pwa-strategy none \
-    --dart-define=BUILD_ENV=production \
-    --dart-define=BUILD_VERSION=1.0.0
+    && flutter build web --release --pwa-strategy none
 
-# Stage 2: Production image sécurisée
+# Stage 2: Production image
 FROM nginx:1.24-alpine
 
 LABEL maintainer="laurentmd5"
-LABEL description="OZN Flutter Web Application - Secure Production"
-LABEL version="1.0.0"
-LABEL security.scan="true"
+LABEL description="OZN Flutter Web Application"
 
 # Variables d'environnement
 ARG NGINX_PORT=8090
@@ -52,34 +47,24 @@ ENV NGINX_PORT=${NGINX_PORT}
 RUN addgroup -g 1001 -S oznapp && \
     adduser -S -D -H -u 1001 -G oznapp -s /sbin/nologin oznapp
 
-# Mise à jour de sécurité
-RUN apk update && apk upgrade --no-cache
-
 # Installation de curl pour health check
 RUN apk add --no-cache curl
 
-# Copie de la configuration Nginx sécurisée
+# Copie de la configuration Nginx
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Script de health check sécurisé
+# Script de health check
 RUN echo '#!/bin/sh' > /healthcheck.sh && \
-    echo 'timeout 10s curl -f -s http://localhost:${NGINX_PORT}/ > /dev/null' >> /healthcheck.sh && \
-    chmod 755 /healthcheck.sh
+    echo 'curl -f http://localhost:${NGINX_PORT}/ > /dev/null 2>&1 || exit 1' >> /healthcheck.sh && \
+    chmod +x /healthcheck.sh
 
 # Copie des fichiers Flutter depuis le stage builder
 COPY --from=flutter-builder --chown=oznapp:oznapp /home/flutter/app/build/web/ /usr/share/nginx/html/
 
 # Sécurisation des permissions
 RUN chmod -R 755 /usr/share/nginx/html && \
-    chmod 644 /usr/share/nginx/html/*.html 2>/dev/null || true && \
-    chmod 644 /usr/share/nginx/html/*.js 2>/dev/null || true && \
-    chmod 644 /usr/share/nginx/html/*.css 2>/dev/null || true && \
     chown -R oznapp:oznapp /var/cache/nginx && \
     chown -R oznapp:oznapp /var/run
-
-# Nettoyage des fichiers sensibles
-RUN rm -f /docker-entrypoint.d/*.sh && \
-    find /usr/share/nginx/html -name "*.map" -delete 2>/dev/null || true
 
 # Exposition du port
 EXPOSE ${NGINX_PORT}
@@ -91,5 +76,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Utilisation de l'utilisateur non-root
 USER oznapp
 
-# Commande de démarrage
 CMD ["nginx", "-g", "daemon off;"]
