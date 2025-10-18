@@ -72,7 +72,7 @@ COPY --chown=flutter:flutter web/ ./web/
 COPY --chown=flutter:flutter assets/ ./assets/ 2>/dev/null || \
     echo "ℹ️  No assets directory found (optional)"
 
-# Build Flutter avec vérifications
+# Build Flutter avec vérifications (SANS --web-renderer pour Flutter 3.19+)
 RUN set -eux; \
     echo "🏗️  Building Flutter web application..."; \
     \
@@ -80,11 +80,9 @@ RUN set -eux; \
     \
     flutter build web \
         --release \
-        --web-renderer html \
         --pwa-strategy none \
         --dart-define=BUILD_ENV=production \
         --dart-define=BUILD_VERSION=1.0.0 \
-        --no-tree-shake-icons \
         --verbose || { \
             echo "❌ Flutter build failed"; \
             exit 1; \
@@ -96,8 +94,8 @@ RUN set -eux; \
         exit 1; \
     fi; \
     \
-    if [ ! -f "build/web/flutter.js" ] && [ ! -f "build/web/main.dart.js" ]; then \
-        echo "❌ Build verification failed: JavaScript files not found"; \
+    if [ ! -f "build/web/flutter.js" ]; then \
+        echo "❌ Build verification failed: flutter.js not found"; \
         exit 1; \
     fi; \
     \

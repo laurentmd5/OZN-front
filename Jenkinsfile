@@ -20,9 +20,11 @@ pipeline {
         DOCKER_TAG = "${env.BUILD_NUMBER}"
         
         // Configuration Chemins
+        WORKSPACE_DIR = "${WORKSPACE}"
         REPORTS_DIR = "${WORKSPACE}/reports"
-        SAST_DIR = "${REPORTS_DIR}/sast"
-        SECURITY_DIR = "${REPORTS_DIR}/security"
+        SAST_DIR = "${WORKSPACE}/reports/sast"
+        SECURITY_DIR = "${WORKSPACE}/reports/security"
+        METRICS_DIR = "${WORKSPACE}/reports/sast/metrics"
         BUILD_DIR = "${WORKSPACE}/build"
         
         // Configuration Déploiement
@@ -33,7 +35,6 @@ pipeline {
         // Configuration Sécurité
         CONTAINER_USER = 'oznapp'
         CONTAINER_UID = '1001'
-        MAX_BUILD_RETRIES = '3'
     }
     
     stages {
@@ -54,9 +55,19 @@ pipeline {
                         echo "Docker Registry: ${DOCKER_REGISTRY}"
                         echo "========================================"
                         
-                        # Création des répertoires
+                        # Création des répertoires avec structure complète
                         echo "📁 Creating directories..."
-                        mkdir -p "${SAST_DIR}" "${SECURITY_DIR}" "${BUILD_DIR}"
+                        mkdir -p "${REPORTS_DIR}"
+                        mkdir -p "${SAST_DIR}"
+                        mkdir -p "${SECURITY_DIR}"
+                        mkdir -p "${METRICS_DIR}"
+                        mkdir -p "${BUILD_DIR}"
+                        
+                        # Vérification de la création
+                        echo "📋 Verifying directories..."
+                        ls -la "${REPORTS_DIR}/"
+                        ls -la "${SAST_DIR}/" || echo "Warning: SAST dir not listed"
+                        ls -la "${SECURITY_DIR}/" || echo "Warning: Security dir not listed"
                         
                         # Vérification des outils
                         echo "🔧 Verifying required tools..."
@@ -155,7 +166,7 @@ pipeline {
                         # Nettoyage
                         echo "🧹 Cleaning previous builds..."
                         flutter clean || true
-                        rm -rf .dart_tool build .packages
+                        rm -rf .dart_tool build .packages 2>/dev/null || true
                         
                         # Installation des dépendances
                         echo "📥 Getting dependencies..."
@@ -197,6 +208,10 @@ pipeline {
                                 set -e
                                 echo "🔍 Running Flutter Analysis"
                                 
+                                # Vérification que le répertoire existe
+                                mkdir -p "${SAST_DIR}"
+                                ls -la "${SAST_DIR}/" || echo "Directory check failed"
+                                
                                 # Analyse avec capture des erreurs
                                 set +e
                                 flutter analyze --no-pub > "${SAST_DIR}/flutter_analysis.txt" 2>&1
@@ -204,7 +219,12 @@ pipeline {
                                 set -e
                                 
                                 # Affichage des résultats
-                                cat "${SAST_DIR}/flutter_analysis.txt"
+                                if [ -f "${SAST_DIR}/flutter_analysis.txt" ]; then
+                                    cat "${SAST_DIR}/flutter_analysis.txt"
+                                else
+                                    echo "⚠️ Analysis file not created"
+                                    flutter analyze --no-pub
+                                fi
                                 
                                 # Comptage des problèmes
                                 ERROR_COUNT=$(grep -c "error •" "${SAST_DIR}/flutter_analysis.txt" 2>/dev/null || echo "0")
@@ -240,9 +260,13 @@ pipeline {
                                 set -e
                                 echo "🛡️ Running Security Scans"
                                 
+                                # Vérification que le répertoire existe
+                                mkdir -p "${SECURITY_DIR}"
+                                ls -la "${SECURITY_DIR}/" || echo "Directory check failed"
+                                
                                 # Scan des secrets hardcodés
                                 echo "🔐 Scanning for hardcoded secrets..."
-                                find lib/ -type f -name "*.dart" -exec grep -Hn -E "(password|api_key|secret|token)\\s*=\\s*['\\\"][^'\\\"]{8,}" {} \\; > "${SECURITY_DIR}/hardcoded-secrets.txt" || true
+                                find lib/ -type f -name "*.dart" -exec grep -Hn -E "(password|api_key|secret|token)\\s*=\\s*['\"][^'\"]{8,}" {} \\; > "${SECURITY_DIR}/hardcoded-secrets.txt" 2>/dev/null || touch "${SECURITY_DIR}/hardcoded-secrets.txt"
                                 
                                 if [ -s "${SECURITY_DIR}/hardcoded-secrets.txt" ]; then
                                     echo "⚠️ Potential hardcoded secrets found:"
@@ -253,7 +277,7 @@ pipeline {
                                 
                                 # Scan des URLs non sécurisées
                                 echo "🌐 Scanning for insecure URLs..."
-                                find lib/ -type f -name "*.dart" -exec grep -Hn "http://[^'\\\"]*" {} \\; > "${SECURITY_DIR}/insecure-urls.txt" || true
+                                find lib/ -type f -name "*.dart" -exec grep -Hn "http://[^'\"]*" {} \\; > "${SECURITY_DIR}/insecure-urls.txt" 2>/dev/null || touch "${SECURITY_DIR}/insecure-urls.txt"
                                 
                                 if [ -s "${SECURITY_DIR}/insecure-urls.txt" ]; then
                                     echo "⚠️ Insecure HTTP URLs found:"
@@ -262,7 +286,7 @@ pipeline {
                                 
                                 # Vérification des dépendances
                                 echo "📦 Checking for outdated dependencies..."
-                                flutter pub outdated > "${SECURITY_DIR}/outdated-deps.txt" 2>&1 || true
+                                flutter pub outdated > "${SECURITY_DIR}/outdated-deps.txt" 2>&1 || touch "${SECURITY_DIR}/outdated-deps.txt"
                                 
                                 echo "✅ Security scan completed"
                                 '''
@@ -286,14 +310,12 @@ pipeline {
                         set -e
                         echo "🏗️ Building Flutter Application"
                         
-                        # Build avec flags de production
+                        # Build avec flags de production (SANS --web-renderer pour Flutter 3.19+)
                         if ! flutter build web \
                             --release \
-                            --web-renderer html \
                             --pwa-strategy none \
                             --dart-define=BUILD_ENV=${BUILD_ENV} \
                             --dart-define=BUILD_NUMBER=${BUILD_NUMBER} \
-                            --no-tree-shake-icons \
                             --verbose; then
                             echo "❌ Flutter build failed"
                             exit 1
@@ -308,10 +330,14 @@ pipeline {
                             exit 1
                         fi
                         
-                        if [ ! -f "build/web/flutter.js" ] && [ ! -f "build/web/main.dart.js" ]; then
-                            echo "❌ Build verification failed: JavaScript files missing"
+                        if [ ! -f "build/web/flutter.js" ]; then
+                            echo "❌ Build verification failed: flutter.js missing"
                             ls -la build/web/ || true
                             exit 1
+                        fi
+                        
+                        if [ ! -f "build/web/main.dart.js" ]; then
+                            echo "⚠️ Warning: main.dart.js not found (might be normal for newer Flutter versions)"
                         fi
                         
                         # Affichage du contenu du build
@@ -431,6 +457,10 @@ pipeline {
                                 sh '''
                                 set -e
                                 echo "🧪 Testing Container Runtime"
+                                
+                                # Nettoyage préalable
+                                docker stop ${APP_NAME}-test 2>/dev/null || true
+                                docker rm ${APP_NAME}-test 2>/dev/null || true
                                 
                                 # Test de démarrage du conteneur
                                 echo "🚀 Starting test container..."
@@ -593,7 +623,7 @@ pipeline {
                 
                 # Affichage des rapports
                 echo "📊 Security Reports Summary:"
-                find reports/ -type f 2>/dev/null | head -20 || true
+                find reports/ -type f 2>/dev/null | head -20 || echo "No reports found"
                 '''
                 
                 // Archivage des artifacts
@@ -662,11 +692,11 @@ pipeline {
                 echo "   5. Check Docker daemon status"
                 echo ""
                 echo "📋 Common Issues:"
+                echo "   - Flutter version compatibility"
                 echo "   - Missing dependencies in pubspec.yaml"
                 echo "   - Syntax errors in Dockerfile"
                 echo "   - nginx.conf configuration issues"
                 echo "   - Network connectivity problems"
-                echo "   - Insufficient permissions"
                 echo ""
                 echo "📊 Available Reports:"
                 find reports/ -type f 2>/dev/null | head -10 || echo "   No reports generated"
