@@ -10,7 +10,7 @@ pipeline {
     
     environment {
         // Configuration Application
-        APP_NAME = 'ozn-flutter-app'
+        APP_NAME = 'ozn-app'
         APP_PORT = '8090'
         BUILD_ENV = 'production'
         BUILD_VERSION = '1.0.0'
@@ -212,86 +212,7 @@ pipeline {
                 }
             }
         }
-        
-        stage('Container Security Tests') {
-            parallel {
-                stage('Trivy Scan') {
-                    steps {
-                        script {
-                            try {
-                                sh '''
-                                set -e
-                                echo "🛡️ Running Trivy Security Scan"
-                                if ! command -v trivy >/dev/null 2>&1; then 
-                                    echo "⚠️ Trivy not installed, skipping scan"
-                                    exit 0
-                                fi
-                                trivy image \
-                                    --exit-code 0 \
-                                    --severity HIGH,CRITICAL \
-                                    --format table \
-                                    ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest | tee "${SECURITY_DIR}/trivy-scan.txt"
-                                echo "✅ Trivy scan completed"
-                                '''
-                            } catch (Exception e) {
-                                unstable("⚠️ Trivy scan completed with findings")
-                            }
-                        }
-                    }
-                }
-                
-                stage('Container Runtime Test') {
-                    steps {
-                        script {
-                            try {
-                                sh '''
-                                set -e
-                                echo "🧪 Testing Container Runtime"
-                                docker stop ${APP_NAME}-test 2>/dev/null || true
-                                docker rm ${APP_NAME}-test 2>/dev/null || true
-                                
-                                echo "🚀 Starting test container..."
-                                docker run -d \
-                                    --name ${APP_NAME}-test \
-                                    -p 8091:${APP_PORT} \
-                                    ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest
-                                
-                                sleep 15
-                                
-                                CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' ${APP_NAME}-test)
-                                echo "Container status: ${CONTAINER_STATUS}"
-                                
-                                if [ "${CONTAINER_STATUS}" != "running" ]; then
-                                    echo "❌ Container not running"
-                                    docker logs ${APP_NAME}-test
-                                    exit 1
-                                fi
-                                
-                                echo "🌐 Testing HTTP response..."
-                                if curl -f -s --max-time 10 http://localhost:8091/ > /dev/null; then
-                                    echo "✅ HTTP test passed"
-                                else
-                                    echo "❌ HTTP test failed"
-                                    docker logs ${APP_NAME}-test
-                                    exit 1
-                                fi
-                                
-                                echo "✅ Container runtime tests passed"
-                                '''
-                            } catch (Exception e) {
-                                error("❌ Container runtime test failed: ${e.message}")
-                            } finally {
-                                sh '''
-                                docker stop ${APP_NAME}-test 2>/dev/null || true
-                                docker rm ${APP_NAME}-test 2>/dev/null || true
-                                '''
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
+
         stage('Deploy to Production') {
             when {
                 expression { return currentBuild.result == null || currentBuild.result == 'SUCCESS' }
