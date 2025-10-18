@@ -38,7 +38,8 @@ pipeline {
         CONTAINER_UID = '1001'
         FLUTTER_VERSION = '3.19.5'
     }
-
+    
+    stages {
         stage('Initialize Pipeline') {
             steps {
                 script {
