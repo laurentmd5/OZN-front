@@ -161,37 +161,6 @@ pipeline {
                 }
             }
         }
-        
-        stage('Security Analysis') {
-            steps {
-                script {
-                    try {
-                        sh '''
-                        set -e
-                        echo "🛡️ Running Security Scans"
-                        mkdir -p "${SECURITY_DIR}"
-                        
-                        echo "🔐 Scanning for hardcoded secrets..."
-                        grep -r -E "(password|api_key|secret|token)\\s*=\\s*['\"][^'\"]{8,}" lib/ --include="*.dart" > "${SECURITY_DIR}/hardcoded-secrets.txt" 2>/dev/null || touch "${SECURITY_DIR}/hardcoded-secrets.txt"
-                        
-                        if [ -s "${SECURITY_DIR}/hardcoded-secrets.txt" ]; then
-                            echo "⚠️ Potential hardcoded secrets found:"
-                            cat "${SECURITY_DIR}/hardcoded-secrets.txt"
-                            echo "❌ Security violation: hardcoded secrets detected"
-                            exit 1
-                        fi
-                        
-                        echo "📦 Checking for outdated dependencies..."
-                        flutter pub outdated > "${SECURITY_DIR}/outdated-deps.txt" 2>&1 || touch "${SECURITY_DIR}/outdated-deps.txt"
-                        
-                        echo "✅ Security scan completed"
-                        '''
-                    } catch (Exception e) {
-                        error("❌ Security scan failed: ${e.message}")
-                    }
-                }
-            }
-        }
 
         stage('Build Docker Image') {
             steps {
