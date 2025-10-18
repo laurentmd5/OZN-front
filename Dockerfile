@@ -40,12 +40,13 @@ ENV PATH="$PATH:/usr/local/flutter/bin" \
 RUN set -eux; \
     flutter --version; \
     flutter doctor -v || true; \
-    flutter config --no-analytics
+    flutter config --no-analytics; \
+    git config --global --add safe.directory /usr/local/flutter
 
 # Création d'un utilisateur non-root
 RUN groupadd -r flutter && \
     useradd -r -g flutter -m -d /home/flutter flutter && \
-    mkdir -p /home/flutter/.config && \
+    mkdir -p /home/flutter/.config/flutter && \
     chown -R flutter:flutter /home/flutter
 
 # Configuration des permissions
@@ -53,6 +54,9 @@ RUN chown -R flutter:flutter /usr/local/flutter
 
 USER flutter
 WORKDIR /home/flutter/app
+
+# Configuration Git pour l'utilisateur flutter
+RUN git config --global --add safe.directory /usr/local/flutter
 
 # Copie du fichier de dépendances
 COPY --chown=flutter:flutter pubspec.yaml pubspec.lock* ./
