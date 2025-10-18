@@ -1,25 +1,25 @@
 pipeline {
     agent any
-    
+
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timestamps()
         timeout(time: 2, unit: 'HOURS')
         disableConcurrentBuilds()
     }
-    
+
     environment {
         // Configuration Application
         APP_NAME = 'ozn-flutter-app'
         APP_PORT = '8090'
         BUILD_ENV = 'production'
         BUILD_VERSION = '1.0.0'
-        
+
         // Configuration Docker
         DOCKER_REGISTRY = 'laurentmd5'
         DOCKER_IMAGE = "${APP_NAME}"
         DOCKER_TAG = "${env.BUILD_NUMBER}"
-        
+
         // Configuration Chemins
         WORKSPACE_DIR = "${WORKSPACE}"
         REPORTS_DIR = "${WORKSPACE}/reports"
@@ -27,18 +27,18 @@ pipeline {
         SECURITY_DIR = "${WORKSPACE}/reports/security"
         METRICS_DIR = "${WORKSPACE}/reports/sast/metrics"
         BUILD_DIR = "${WORKSPACE}/.build_temp" // Dossier temporaire pour les logs de build
-        
+
         // Configuration Déploiement
         DEPLOY_SERVER = 'devops@localhost'
         DEPLOY_PATH = '/home/devops/apps'
         SSH_CREDENTIALS_ID = 'ubuntu-server-ssh'
-        
+
         // Configuration Sécurité (Doit correspondre aux ARG du Dockerfile)
         CONTAINER_USER = 'oznapp'
         CONTAINER_UID = '1001'
         FLUTTER_VERSION = '3.19.5'
     }
-    
+
     stages {
         stage('Initialize Pipeline') {
             steps {
@@ -52,7 +52,7 @@ pipeline {
                         echo "Version: ${BUILD_VERSION}"
                         echo "Flutter Version: ${FLUTTER_VERSION}"
                         
-                        # CORRECTION: Création explicite et robuste de TOUS les répertoires nécessaires
+                        # Création explicite et robuste de TOUS les répertoires nécessaires
                         echo "📁 Creating reports and build directories..."
                         mkdir -p "${REPORTS_DIR}" "${SAST_DIR}" "${SECURITY_DIR}" "${METRICS_DIR}" "${BUILD_DIR}"
                         
@@ -69,7 +69,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Secure Checkout') {
             steps {
                 script {
@@ -86,7 +86,7 @@ pipeline {
                                 [$class: 'CloneOption', depth: 1, noTags: false, shallow: true]
                             ]
                         ])
-                        
+
                         sh '''
                         set -e
                         echo "🔒 Secure Code Checkout Completed"
@@ -104,7 +104,7 @@ pipeline {
 
         stage('Validate Dependencies (Analysis Only)') {
             when {
-                expression { 
+                expression {
                     try {
                         sh(returnStdout: true, script: 'command -v flutter >/dev/null 2>&1').trim()
                         return true
@@ -120,16 +120,16 @@ pipeline {
                         sh '''
                         set -e
                         echo "📦 Validating Flutter Dependencies on Host (for Analysis)"
-                        
+
                         flutter config --no-analytics
                         flutter clean || true
-                        
+
                         # Tentative d'installation des dépendances
                         if ! flutter pub get --verbose; then
                             echo "❌ Failed to get dependencies for host analysis. This is non-blocking for Docker build."
                             exit 0 # Non-bloquant pour le Docker build
                         fi
-                        
+
                         echo "✅ Host Dependencies validated"
                         '''
                     } catch (Exception e) {
@@ -138,7 +138,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Static Analysis (SAST & Linting)') {
             steps {
                 script {
@@ -147,18 +147,18 @@ pipeline {
                         set -e
                         echo "🔍 Running Static Analysis & Linting"
                         mkdir -p "${SAST_DIR}"
-                        
+
                         # 1. Vérification du format (dart format)
                         echo "📏 Checking Dart formatting..."
                         if ! dart format --set-exit-if-changed --line-length 120 lib/; then
                             echo "❌ Dart formatting failed. Please run 'dart format .' locally."
                             # exit 1 # Optionnel: Bloquer le build si le format n'est pas respecté
                         fi
-                        
+
                         # 2. Analyse statique (dart analyze / flutter analyze)
                         echo "🧠 Running Dart analysis..."
                         flutter analyze --write "${SAST_DIR}/flutter_analysis.txt" || true
-                        
+
                         echo "✅ Analysis completed"
                         '''
                     } catch (Exception e) {
@@ -167,7 +167,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Security Analysis') {
             steps {
                 script {
@@ -176,23 +176,22 @@ pipeline {
                         set -e
                         echo "🛡️ Running Security Scans"
                         mkdir -p "${SECURITY_DIR}"
-                        
+
                         # Scan des secrets hardcodés
                         echo "🔐 Scanning for hardcoded secrets..."
-                        # Commande grep robuste pour identifier les secrets potentiels
                         grep -r -E "(password|api_key|secret|token)\\s*=\\s*['\"][^'\"]{8,}" lib/ --include="*.dart" > "${SECURITY_DIR}/hardcoded-secrets.txt" 2>/dev/null || touch "${SECURITY_DIR}/hardcoded-secrets.txt"
-                        
+
                         if [ -s "${SECURITY_DIR}/hardcoded-secrets.txt" ]; then
                             echo "⚠️ Potential hardcoded secrets found:"
                             cat "${SECURITY_DIR}/hardcoded-secrets.txt"
                             echo "❌ Security violation: hardcoded secrets detected"
                             exit 1
                         fi
-                        
+
                         # Vérification des dépendances obsolètes
                         echo "📦 Checking for outdated dependencies..."
                         flutter pub outdated > "${SECURITY_DIR}/outdated-deps.txt" 2>&1 || touch "${SECURITY_DIR}/outdated-deps.txt"
-                        
+
                         echo "✅ Security scan completed"
                         '''
                     } catch (Exception e) {
@@ -205,7 +204,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    # Activation de DOCKER_BUILDKIT pour supprimer l'avertissement de dépréciation et améliorer le build
+                    // Activation de DOCKER_BUILDKIT pour supprimer l'avertissement de dépréciation et améliorer le build
                     withEnv(['DOCKER_BUILDKIT=1']) {
                         try {
                             sh '''
@@ -232,7 +231,7 @@ pipeline {
                                 tail -50 "${BUILD_DIR}/docker-build.log" 2>/dev/null || echo "Docker build log not available"
                                 exit 1
                             fi
-                            
+
                             echo "✅ Docker image built successfully"
                             '''
                         } catch (Exception e) {
@@ -242,7 +241,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Container Security Tests') {
             parallel {
                 stage('Trivy Scan') {
@@ -266,7 +265,7 @@ pipeline {
                         }
                     }
                 }
-                
+
                 stage('Container Runtime Test') {
                     steps {
                         script {
@@ -318,7 +317,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Deploy to Production') {
             when {
                 expression { return currentBuild.result == null || currentBuild.result == 'SUCCESS' }
@@ -335,11 +334,8 @@ pipeline {
                             set -e
                             echo "🚀 Deploying to Production"
                             
-                            # Connexion SSH et déploiement
                             ssh -i $SSH_KEY -o StrictHostKeyChecking=no ${DEPLOY_SERVER} "
                                 set -e
-                                
-                                # Configuration de l'environnement sur le serveur distant
                                 DEPLOY_PATH='${DEPLOY_PATH}'
                                 APP_NAME='${APP_NAME}'
                                 APP_PORT='${APP_PORT}'
@@ -400,7 +396,6 @@ pipeline {
                     echo 🧹 Cleaning up Docker resources...
                     docker stop ozn-flutter-app-test 2>/dev/null || true
                     docker rm ozn-flutter-app-test 2>/dev/null || true
-                    # Prune uniquement les ressources non utilisées
                     docker system prune -f --volumes
                     '''
                     
