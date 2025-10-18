@@ -213,6 +213,32 @@ pipeline {
             }
         }
 
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-creds',  // Utilise l'ID que vous avez créé
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        sh '''
+                        set -e
+                        echo "📤 Pushing Docker image to Docker Hub..."
+                        
+                        # Se connecter à Docker Hub
+                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                        
+                        # Pousser les images
+                        docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest
+                        
+                        echo "✅ Images pushed successfully to Docker Hub"
+                        '''
+                    }
+                }
+            }
+        }        
+
         stage('Deploy to Production') {
             when {
                 expression { return currentBuild.result == null || currentBuild.result == 'SUCCESS' }
