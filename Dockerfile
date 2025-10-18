@@ -7,10 +7,10 @@ ARG BUILD_VERSION
 
 # ====================================================================
 # STAGE 1: Build l'application Flutter
-# Utilise l'image Flutter officielle comme environnement de construction
+# Utilise l'image Flutter officielle de Docker Hub (ACCES PUBLIC)
 # ====================================================================
-# Utilisation de l'image spécifiée pour la version de Flutter
-FROM ghcr.io/circus-industries/flutter:${FLUTTER_VERSION} as builder
+# CORRECTION: Utilisation de l'image Flutter officielle et publique (pour éviter 'denied' error)
+FROM flutter:${FLUTTER_VERSION} as builder
 
 # Définition de l'utilisateur de construction et du répertoire de travail
 WORKDIR /home/app
@@ -23,7 +23,7 @@ COPY .dart_tool/package_config.json .dart_tool/ || true
 # Installation des outils nécessaires pour le script de réessai
 RUN apt-get update && apt-get install -y --no-install-recommends bash curl && rm -rf /var/lib/apt/lists/*
 
-# Fix CRITIQUE: Logique de réessai pour flutter pub get (pour gérer les timeouts réseau)
+# Logique de réessai pour flutter pub get (pour gérer les timeouts réseau)
 RUN set +e; \
     RETRY_COUNT=0; \
     MAX_RETRIES=3; \
