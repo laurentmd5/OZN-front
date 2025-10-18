@@ -1,136 +1,95 @@
-# Dockerfile optimisé pour Flutter Web avec sécurité renforcée et port 8090
+# Stage 1: Build Flutter
+FROM debian:bullseye-slim as flutter-builder
+
+# Installation des dépendances système
+RUN apt-get update && apt-get install -y \
+    curl \
+    unzip \
+    git \
+    xz-utils \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Installation de Flutter
+RUN curl -L https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.19.5-stable.tar.xz -o flutter.tar.xz \
+    && tar -xf flutter.tar.xz -C /usr/local \
+    && rm flutter.tar.xz
+
+ENV PATH="$PATH:/usr/local/flutter/bin"
+
+# Création d'un utilisateur non-root pour le build
+RUN groupadd -r flutter && useradd -r -g flutter flutter
+USER flutter
+WORKDIR /home/flutter/app
+
+# Copie des fichiers du projet
+COPY --chown=flutter:flutter pubspec.yaml pubspec.yaml
+COPY --chown=flutter:flutter lib/ lib/
+COPY --chown=flutter:flutter assets/ assets/ 2>/dev/null || true
+
+# Résolution des dépendances
+RUN flutter pub get
+
+# Build Flutter web en mode release
+RUN flutter config --enable-web \
+    && flutter build web --release --pwa-strategy none \
+    --dart-define=BUILD_ENV=production \
+    --dart-define=BUILD_VERSION=1.0.0
+
+# Stage 2: Production image sécurisée
 FROM nginx:1.24-alpine
 
-# Métadonnées
-LABEL maintainer="devops-team"
-LABEL description="OZN Flutter Web Application"
+LABEL maintainer="laurentmd5"
+LABEL description="OZN Flutter Web Application - Secure Production"
 LABEL version="1.0.0"
+LABEL security.scan="true"
 
-# Variables d'environnement avec port 8090
+# Variables d'environnement
 ARG NGINX_PORT=8090
 ENV NGINX_PORT=${NGINX_PORT}
-ENV APP_USER=oznapp
-ENV APP_GROUP=oznapp
-ENV APP_UID=1001
-ENV APP_GID=1001
 
-# Installation des outils de sécurité (tzdata sans version fixe)
-RUN apk add --no-cache \
-    curl \
-    tzdata \
-    && rm -rf /var/cache/apk/*
+# Création d'un utilisateur non-root
+RUN addgroup -g 1001 -S oznapp && \
+    adduser -S -D -H -u 1001 -G oznapp -s /sbin/nologin oznapp
 
-# Création de l'utilisateur non-root
-RUN addgroup -g ${APP_GID} -S ${APP_GROUP} && \
-    adduser -S -D -H -u ${APP_UID} -G ${APP_GROUP} -s /sbin/nologin ${APP_USER}
+# Mise à jour de sécurité
+RUN apk update && apk upgrade --no-cache
 
-# Configuration Nginx sécurisé
-COPY <<EOF /etc/nginx/nginx.conf
-user oznapp oznapp;
-worker_processes auto;
-error_log /dev/stderr warn;
-pid /var/run/nginx.pid;
+# Installation de curl pour health check
+RUN apk add --no-cache curl
 
-events {
-    worker_connections 1024;
-    use epoll;
-    multi_accept on;
-}
+# Copie de la configuration Nginx sécurisée
+COPY nginx.conf /etc/nginx/nginx.conf
 
-http {
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
+# Script de health check sécurisé
+RUN echo '#!/bin/sh' > /healthcheck.sh && \
+    echo 'timeout 10s curl -f -s http://localhost:${NGINX_PORT}/ > /dev/null' >> /healthcheck.sh && \
+    chmod 755 /healthcheck.sh
 
-    log_format main '\$remote_addr - \$remote_user [\$time_local] "\$request" '
-                    '\$status \$body_bytes_sent "\$http_referer" '
-                    '"\$http_user_agent" "\$http_x_forwarded_for"';
-    
-    access_log /dev/stdout main;
+# Copie des fichiers Flutter depuis le stage builder
+COPY --from=flutter-builder --chown=oznapp:oznapp /home/flutter/app/build/web/ /usr/share/nginx/html/
 
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    keepalive_timeout 65;
-    types_hash_max_size 2048;
-    client_max_body_size 1M;
-
-    add_header X-Frame-Options DENY always;
-    add_header X-Content-Type-Options nosniff always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_types
-        text/plain
-        text/css
-        text/xml
-        text/javascript
-        application/javascript
-        application/xml+rss
-        application/json;
-
-    server {
-        listen ${NGINX_PORT} default_server;
-        listen [::]:${NGINX_PORT} default_server;
-        server_name _;
-
-        server_tokens off;
-        root /usr/share/nginx/html;
-        index index.html index.htm;
-
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-            add_header Vary "Accept-Encoding";
-        }
-
-        location ~* \.html$ {
-            expires -1;
-            add_header Cache-Control "no-store, no-cache, must-revalidate";
-        }
-
-        location / {
-            try_files \$uri \$uri/ /index.html;
-            add_header Cache-Control "no-store, no-cache, must-revalidate";
-        }
-
-        location ~ /\. { deny all; access_log off; log_not_found off; }
-        location ~* (\.env|\.git|\.htaccess|\.htpasswd|Dockerfile|docker-compose\.yml)$ {
-            deny all;
-            access_log off;
-            log_not_found off;
-        }
-
-        location /health {
-            access_log off;
-            return 200 "healthy\n";
-            add_header Content-Type text/plain;
-        }
-
-        location /robots.txt {
-            return 200 "User-agent: *\nDisallow: /\n";
-            add_header Content-Type text/plain;
-        }
-    }
-}
-EOF
-
-# Copie du build Flutter Web
-COPY --chown=oznapp:oznapp build/web /usr/share/nginx/html
-
-# Permissions
+# Sécurisation des permissions
 RUN chmod -R 755 /usr/share/nginx/html && \
-    chown -R oznapp:oznapp /usr/share/nginx/html && \
-    chmod 644 /etc/nginx/nginx.conf
+    chmod 644 /usr/share/nginx/html/*.html 2>/dev/null || true && \
+    chmod 644 /usr/share/nginx/html/*.js 2>/dev/null || true && \
+    chmod 644 /usr/share/nginx/html/*.css 2>/dev/null || true && \
+    chown -R oznapp:oznapp /var/cache/nginx && \
+    chown -R oznapp:oznapp /var/run
 
-USER oznapp
+# Nettoyage des fichiers sensibles
+RUN rm -f /docker-entrypoint.d/*.sh && \
+    find /usr/share/nginx/html -name "*.map" -delete 2>/dev/null || true
+
+# Exposition du port
 EXPOSE ${NGINX_PORT}
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${NGINX_PORT}/health || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD /healthcheck.sh
 
+# Utilisation de l'utilisateur non-root
+USER oznapp
+
+# Commande de démarrage
 CMD ["nginx", "-g", "daemon off;"]
