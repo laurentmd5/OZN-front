@@ -177,7 +177,6 @@ pipeline {
         }
         
         stage('Security Analysis') {
-            // ... (Logique inchangée) ...
             steps {
                 script {
                     try {
@@ -188,7 +187,8 @@ pipeline {
                         
                         # Scan des secrets hardcodés
                         echo "🔐 Scanning for hardcoded secrets..."
-                        find lib/ -type f -name "*.dart" -exec grep -Hn -E "(password|api_key|secret|token)\\s*=\\s*['\"][^'\"]{8,}" {} \\; > "${SECURITY_DIR}/hardcoded-secrets.txt" 2>/dev/null || touch "${SECURITY_DIR}/hardcoded-secrets.txt"
+                        # CORRECTION : Utilisation d'une commande grep -r plus simple et robuste pour Jenkins
+                        grep -r -E "(password|api_key|secret|token)\\s*=\\s*['\"][^'\"]{8,}" lib/ --include="*.dart" > "${SECURITY_DIR}/hardcoded-secrets.txt" 2>/dev/null || touch "${SECURITY_DIR}/hardcoded-secrets.txt"
                         
                         if [ -s "${SECURITY_DIR}/hardcoded-secrets.txt" ]; then
                             echo "⚠️ Potential hardcoded secrets found:"
