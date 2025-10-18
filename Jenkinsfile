@@ -166,23 +166,19 @@ pipeline {
                     try {
                         sh '''
                         set -e
-                        echo "🐳 Building Docker Image (Multi-Stage Build)"
+                        echo "🐳 Building Docker Image"
                         
-                        # S'assurer que le répertoire de build existe
                         mkdir -p "${BUILD_DIR}"
                         
-                        # Désactiver BuildKit pour éviter les erreurs
-                        export DOCKER_BUILDKIT=0
+                        echo "🔍 Debug: Current directory content"
+                        ls -la
                         
-                        echo "🔨 Building image with arguments..."
-                        echo "   - Flutter Version: ${FLUTTER_VERSION}"
-                        echo "   - Port: ${APP_PORT}"
-                        echo "   - Registry: ${DOCKER_REGISTRY}"
-                        echo "   - Image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                        echo "🔍 Debug: Dockerfile content"
+                        head -20 Dockerfile || echo "Dockerfile not accessible"
                         
-                        # Construction sans BuildKit
-                        if ! docker build \
-                            --pull \
+                        # Construction avec sortie détaillée
+                        echo "🔨 Building image with detailed output..."
+                        docker build \
                             --build-arg NGINX_PORT=${APP_PORT} \
                             --build-arg FLUTTER_VERSION=${FLUTTER_VERSION} \
                             --build-arg CONTAINER_USER=${CONTAINER_USER} \
@@ -193,18 +189,27 @@ pipeline {
                             --label "build.number=${BUILD_NUMBER}" \
                             --label "build.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
                             --label "version=${BUILD_VERSION}" \
-                            . 2>&1 | tee "${BUILD_DIR}/docker-build.log"; then
-                            echo "❌ Docker build failed"
-                            echo "=== Dernières lignes du log ==="
-                            tail -20 "${BUILD_DIR}/docker-build.log"
+                            . 2>&1 | tee "${BUILD_DIR}/docker-build.log"
+                        
+                        # Vérification SPÉCIFIQUE des tags
+                        echo "🔍 Verifying Docker image tags..."
+                        echo "=== Checking specific tags ==="
+                        
+                        if ! docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} >/dev/null 2>&1; then
+                            echo "❌ Tag ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} not found"
+                            echo "Available images:"
+                            docker images
                             exit 1
                         fi
                         
-                        echo "✅ Docker image built successfully"
+                        if ! docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest >/dev/null 2>&1; then
+                            echo "❌ Tag ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest not found"
+                            echo "Available images:"
+                            docker images
+                            exit 1
+                        fi
                         
-                        # Vérification de l'image
-                        echo "🔍 Verifying Docker image..."
-                        docker images | grep "${DOCKER_IMAGE}" || echo "Image verification failed"
+                        echo "✅ Docker image built and ALL tags verified successfully"
                         '''
                     } catch (Exception e) {
                         error("❌ Docker build failed: ${e.message}")
@@ -212,12 +217,34 @@ pipeline {
                 }
             }
         }
-
+        
+        stage('Verify Image') {
+            steps {
+                script {
+                    sh '''
+                    set -e
+                    echo "🔍 Verifying Docker image details..."
+                    echo "=== All Docker images ==="
+                    docker images
+                    echo "=== Specific image tags ==="
+                    docker images | grep "${DOCKER_REGISTRY}/${DOCKER_IMAGE}" || echo "No images found with registry prefix"
+                    
+                    # Vérification robuste que l'image peut être inspectée
+                    echo "=== Inspecting specific tags ==="
+                    docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} && echo "✅ Tag ${DOCKER_TAG} verified"
+                    docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest && echo "✅ Tag latest verified"
+                    
+                    echo "✅ Image verification completed"
+                    '''
+                }
+            }
+        }
+        
         stage('Push to Docker Hub') {
             steps {
                 script {
                     withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-creds',  // Utilise l'ID que vous avez créé
+                        credentialsId: 'docker-hub-creds',
                         usernameVariable: 'DOCKER_USERNAME',
                         passwordVariable: 'DOCKER_PASSWORD'
                     )]) {
@@ -225,11 +252,25 @@ pipeline {
                         set -e
                         echo "📤 Pushing Docker image to Docker Hub..."
                         
+                        # Afficher les images AVEC le registry prefix
+                        echo "📋 Images disponibles avant push:"
+                        docker images | grep "${DOCKER_REGISTRY}/${DOCKER_IMAGE}" || echo "Aucune image trouvée avec le préfixe registry"
+                        
+                        # Vérification finale avant push
+                        echo "🔍 Final verification before push..."
+                        if ! docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} >/dev/null 2>&1; then
+                            echo "❌ CRITICAL: Image ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} not found for push"
+                            exit 1
+                        fi
+                        
                         # Se connecter à Docker Hub
                         echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
                         
-                        # Pousser les images
+                        # Pousser les images avec vérification
+                        echo "🚀 Pushing ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
                         docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
+                        
+                        echo "🚀 Pushing ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
                         docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest
                         
                         echo "✅ Images pushed successfully to Docker Hub"
@@ -237,7 +278,7 @@ pipeline {
                     }
                 }
             }
-        }        
+        }
 
         stage('Deploy to Production') {
             when {
