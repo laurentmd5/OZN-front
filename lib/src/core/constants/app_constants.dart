@@ -21,7 +21,7 @@ enum UserRole {
 /// Statuts des courses MVP
 enum TripStatus {
   pending('En attente'),
-  confirmed('Confirmé'), 
+  confirmed('Confirmé'),
   active('En cours'),
   completed('Terminé'),
   cancelled('Annulé');

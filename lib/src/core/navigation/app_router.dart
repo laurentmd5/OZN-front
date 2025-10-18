@@ -10,26 +10,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/onboarding',
     routes: [
-      GoRoute(
-        path: '/onboarding',
-        name: 'onboarding',
-        builder: (context, state) => const OnboardingPage(),
-      ),
-      GoRoute(
-        path: '/login',
-        name: 'login', 
-        builder: (context, state) => const LoginPage(),
-      ),
-      GoRoute(
-        path: '/register',
-        name: 'register',
-        builder: (context, state) => const RegisterPage(),
-      ),
-      GoRoute(
-        path: '/home',
-        name: 'home',
-        builder: (context, state) => const HomePage(),
-      ),
+      GoRoute(path: '/onboarding', name: 'onboarding', builder: (context, state) => const OnboardingPage()),
+      GoRoute(path: '/login', name: 'login', builder: (context, state) => const LoginPage()),
+      GoRoute(path: '/register', name: 'register', builder: (context, state) => const RegisterPage()),
+      GoRoute(path: '/home', name: 'home', builder: (context, state) => const HomePage()),
     ],
   );
 });

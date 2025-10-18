@@ -9,7 +9,7 @@ class OZNApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
-    
+
     return MaterialApp.router(
       title: 'OZN - Solidarité Locale',
       theme: _buildTheme(),
@@ -21,10 +21,7 @@ class OZNApp extends ConsumerWidget {
   ThemeData _buildTheme() {
     return ThemeData(
       primaryColor: const Color(0xFF27AE60),
-      colorScheme: const ColorScheme.light(
-        primary: Color(0xFF27AE60),
-        secondary: Color(0xFF2D9CDB),
-      ),
+      colorScheme: const ColorScheme.light(primary: Color(0xFF27AE60), secondary: Color(0xFF2D9CDB)),
       useMaterial3: true,
     );
   }

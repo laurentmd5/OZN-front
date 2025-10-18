@@ -18,18 +18,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
     {
       'title': 'Solidarité à 500m',
       'description': 'Connectez-vous avec vos voisins pour des courses partagées',
-      'emoji': '👥'
+      'emoji': '👥',
     },
-    {
-      'title': 'Écologique',
-      'description': 'Réduisez votre empreinte carbone ensemble',
-      'emoji': '🌱'
-    },
-    {
-      'title': 'Sécurisé',
-      'description': 'Profils vérifiés et système de confiance',
-      'emoji': '🔒'
-    },
+    {'title': 'Écologique', 'description': 'Réduisez votre empreinte carbone ensemble', 'emoji': '🌱'},
+    {'title': 'Sécurisé', 'description': 'Profils vérifiés et système de confiance', 'emoji': '🔒'},
   ];
 
   @override
@@ -67,16 +59,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
             Padding(
               padding: const EdgeInsets.all(24.0),
               child: ElevatedButton(
-                onPressed: _currentPage == _slides.length - 1 
+                onPressed: _currentPage == _slides.length - 1
                     ? _goToLogin // ← CORRIGER ICI AUSSI
                     : _nextPage,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF27AE60),
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.buttonBorderRadius),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.buttonBorderRadius)),
                 ),
                 child: Text(_currentPage == _slides.length - 1 ? 'Commencer' : 'Suivant'),
               ),
@@ -93,26 +83,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            slide['emoji']!,
-            style: const TextStyle(fontSize: 80),
-          ),
+          Text(slide['emoji']!, style: const TextStyle(fontSize: 80)),
           const SizedBox(height: 40),
           Text(
             slide['title']!,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           Text(
             slide['description']!,
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
-            ),
+            style: const TextStyle(fontSize: 16, color: Colors.grey),
             textAlign: TextAlign.center,
           ),
         ],
@@ -138,10 +119,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   void _nextPage() {
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeIn,
-    );
+    _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
   }
 
   void _goToLogin() {

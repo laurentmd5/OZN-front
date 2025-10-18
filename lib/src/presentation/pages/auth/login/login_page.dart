@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart'; // ← Ajouter cet import
 import 'package:ozn/src/core/constants/app_constants.dart';
 
-
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -34,50 +33,29 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 20),
 
               // Title
-              const Text(
-                'Content de vous revoir !',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text('Content de vous revoir !', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text(
-                'Connectez-vous à votre compte OZN',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-              ),
+              const Text('Connectez-vous à votre compte OZN', style: TextStyle(fontSize: 16, color: Colors.grey)),
 
               const SizedBox(height: 40),
 
               // Form
               TextField(
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Adresse email',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Adresse email', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _passwordController,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Mot de passe',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Mot de passe', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 16),
 
               // Forgot password
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {},
-                  child: const Text('Mot de passe oublié ?'),
-                ),
+                child: TextButton(onPressed: () {}, child: const Text('Mot de passe oublié ?')),
               ),
 
               const SizedBox(height: 24),
@@ -89,16 +67,10 @@ class _LoginPageState extends State<LoginPage> {
                   backgroundColor: const Color(0xFF27AE60),
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.buttonBorderRadius),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.buttonBorderRadius)),
                 ),
-                child: _isLoading 
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                child: _isLoading
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Text('Se connecter'),
               ),
 
@@ -111,9 +83,7 @@ class _LoginPageState extends State<LoginPage> {
                   backgroundColor: Colors.orange, // Couleur distincte pour le dev
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 45),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.buttonBorderRadius),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.buttonBorderRadius)),
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -131,10 +101,7 @@ class _LoginPageState extends State<LoginPage> {
               const Row(
                 children: [
                   Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Text('ou'),
-                  ),
+                  Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('ou')),
                   Expanded(child: Divider()),
                 ],
               ),
@@ -174,22 +141,14 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildSocialButton(String text, VoidCallback onPressed) {
     return IconButton(
       onPressed: onPressed,
-      style: IconButton.styleFrom(
-        backgroundColor: Colors.grey[100],
-        minimumSize: const Size(60, 60),
-      ),
-      icon: Text(
-        text,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
+      style: IconButton.styleFrom(backgroundColor: Colors.grey[100], minimumSize: const Size(60, 60)),
+      icon: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
     );
   }
 
   void _login() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez remplir tous les champs')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez remplir tous les champs')));
       return;
     }
 

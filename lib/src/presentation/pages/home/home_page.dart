@@ -17,46 +17,23 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text(
           'OZN',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF27AE60),
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF27AE60)),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
-          ),
-        ],
+        actions: [IconButton(icon: const Icon(Icons.notifications_outlined), onPressed: () {})],
       ),
       body: _buildCurrentPage(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Accueil',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Rechercher',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle_outline),
-            label: 'Créer',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_outlined),
-            label: 'Messages',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Profil',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Rechercher'),
+          BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: 'Créer'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat_outlined), label: 'Messages'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profil'),
         ],
       ),
-      floatingActionButton: _currentIndex == 0 
+      floatingActionButton: _currentIndex == 0
           ? FloatingActionButton(
               onPressed: () {},
               backgroundColor: const Color(0xFF27AE60),
@@ -93,9 +70,7 @@ class _HomePageState extends State<HomePage> {
             decoration: InputDecoration(
               hintText: 'Rechercher un supermarché...',
               prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(25),
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(25)),
             ),
           ),
         ),
@@ -123,24 +98,15 @@ class _HomePageState extends State<HomePage> {
                         children: [
                           const Icon(Icons.map, size: 64, color: Colors.grey),
                           const SizedBox(height: 16),
-                          const Text(
-                            'Carte des courses',
-                            style: TextStyle(fontSize: 18),
-                          ),
+                          const Text('Carte des courses', style: TextStyle(fontSize: 18)),
                           const SizedBox(height: 8),
-                          Text(
-                            '3 conducteurs à proximité',
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
+                          Text('3 conducteurs à proximité', style: TextStyle(color: Colors.grey[600])),
                         ],
                       ),
                     ),
-                    
+
                     // Vue Liste
-                    ListView.builder(
-                      itemCount: 3,
-                      itemBuilder: (context, index) => _buildTripCard(index),
-                    ),
+                    ListView.builder(itemCount: 3, itemBuilder: (context, index) => _buildTripCard(index)),
                   ],
                 ),
               ),
@@ -170,16 +136,9 @@ class _HomePageState extends State<HomePage> {
           children: [
             Text(
               prices[index],
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Color(0xFF27AE60),
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF27AE60)),
             ),
-            const Text(
-              'Réserver',
-              style: TextStyle(fontSize: 12),
-            ),
+            const Text('Réserver', style: TextStyle(fontSize: 12)),
           ],
         ),
         onTap: () {},
