@@ -44,7 +44,9 @@ RUN set -eux; \
 
 # Création d'un utilisateur non-root
 RUN groupadd -r flutter && \
-    useradd -r -g flutter -m -d /home/flutter flutter
+    useradd -r -g flutter -m -d /home/flutter flutter && \
+    mkdir -p /home/flutter/.config && \
+    chown -R flutter:flutter /home/flutter
 
 # Configuration des permissions
 RUN chown -R flutter:flutter /usr/local/flutter
