@@ -36,7 +36,7 @@ pipeline {
         // Configuration Sécurité
         CONTAINER_USER = 'oznapp'
         CONTAINER_UID = '1001'
-        FLUTTER_VERSION = '3.19.5'
+        FLUTTER_VERSION = '3.35.6'
     }
     
     stages {
