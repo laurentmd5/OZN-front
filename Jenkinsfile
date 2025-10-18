@@ -386,7 +386,6 @@ pipeline {
                             --label "build.number=${BUILD_NUMBER}" \
                             --label "build.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
                             --label "version=1.0.0" \
-                            --progress=plain \
                             . 2>&1 | tee "${BUILD_DIR}/docker-build.log"; then
                             echo "❌ Docker build failed"
                             tail -50 "${BUILD_DIR}/docker-build.log"
