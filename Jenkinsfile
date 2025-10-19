@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     options {
-        buildDiscarder(logRotator(numToKeepStr: '5'))
+        buildDiscarder(logRotator(numToKeepStr: '10'))
         timestamps()
         timeout(time: 2, unit: 'HOURS')
         disableConcurrentBuilds()
@@ -19,6 +19,7 @@ pipeline {
         DOCKER_REGISTRY = 'laurentmd5'
         DOCKER_IMAGE = "${APP_NAME}"
         DOCKER_TAG = "${env.BUILD_NUMBER}"
+        DOCKER_CREDENTIALS_ID = 'docker-hub-creds'
         
         // Configuration Chemins
         WORKSPACE_DIR = "${WORKSPACE}"
@@ -160,125 +161,54 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('🛠 Build & Push Docker Image') {
             steps {
                 script {
-                    try {
-                        sh '''
+                    echo "🏗️ Starting Docker build and push process..."
+                    
+                    def imageName = "${DOCKER_IMAGE}:${DOCKER_TAG}"
+                    def imageLatest = "${DOCKER_IMAGE}:latest"
+                    def fullImageName = "${DOCKER_REGISTRY}/${imageName}"
+                    def fullImageLatest = "${DOCKER_REGISTRY}/${imageLatest}"
+        
+                    echo "🔧 Building Docker image: ${fullImageName}"
+        
+                    sh """
                         set -e
-                        echo "🐳 Building Docker Image"
-                        
-                        mkdir -p "${BUILD_DIR}"
-                        
-                        echo "🔍 Debug: Current directory content"
-                        ls -la
-                        
-                        echo "🔍 Debug: Dockerfile content"
-                        head -20 Dockerfile || echo "Dockerfile not accessible"
-                        
-                        # Construction avec sortie détaillée
-                        echo "🔨 Building image with detailed output..."
-                        docker build \
-                            --build-arg NGINX_PORT=${APP_PORT} \
-                            --build-arg FLUTTER_VERSION=${FLUTTER_VERSION} \
-                            --build-arg CONTAINER_USER=${CONTAINER_USER} \
-                            --build-arg CONTAINER_UID=${CONTAINER_UID} \
-                            --build-arg BUILD_VERSION=${BUILD_VERSION} \
-                            --tag ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} \
-                            --tag ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest \
-                            --label "build.number=${BUILD_NUMBER}" \
-                            --label "build.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                            --label "version=${BUILD_VERSION}" \
-                            . 2>&1 | tee "${BUILD_DIR}/docker-build.log"
-                        
-                        # Vérification SPÉCIFIQUE des tags
-                        echo "🔍 Verifying Docker image tags..."
-                        echo "=== Checking specific tags ==="
-                        
-                        if ! docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} >/dev/null 2>&1; then
-                            echo "❌ Tag ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} not found"
-                            echo "Available images:"
-                            docker images
-                            exit 1
-                        fi
-                        
-                        if ! docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest >/dev/null 2>&1; then
-                            echo "❌ Tag ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest not found"
-                            echo "Available images:"
-                            docker images
-                            exit 1
-                        fi
-                        
-                        echo "✅ Docker image built and ALL tags verified successfully"
-                        '''
-                    } catch (Exception e) {
-                        error("❌ Docker build failed: ${e.message}")
-                    }
-                }
-            }
-        }
+                        echo "🚧 Building image ${fullImageName}..."
+                        docker build -t ${fullImageName} .
+                        docker tag ${fullImageName} ${fullImageLatest}
+                        echo "✅ Docker build finished successfully."
+                    """
         
-        stage('Verify Image') {
-            steps {
-                script {
-                    sh '''
-                    set -e
-                    echo "🔍 Verifying Docker image details..."
-                    echo "=== All Docker images ==="
-                    docker images
-                    echo "=== Specific image tags ==="
-                    docker images | grep "${DOCKER_REGISTRY}/${DOCKER_IMAGE}" || echo "No images found with registry prefix"
-                    
-                    # Vérification robuste que l'image peut être inspectée
-                    echo "=== Inspecting specific tags ==="
-                    docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} && echo "✅ Tag ${DOCKER_TAG} verified"
-                    docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest && echo "✅ Tag latest verified"
-                    
-                    echo "✅ Image verification completed"
-                    '''
-                }
-            }
-        }
+                    sh """
+                        echo "🔍 Listing images for verification:"
+                        docker images ${DOCKER_IMAGE}
+                        docker images --format '{{.Repository}}:{{.Tag}}' | grep -q ${DOCKER_IMAGE}:${DOCKER_TAG} \
+                            || (echo "❌ ERROR: Docker image tag ${DOCKER_TAG} not found locally after build!" && exit 1)
+                    """
         
-        stage('Push to Docker Hub') {
-            steps {
-                script {
+                    // 🔑 UTILISER LES CREDENTIALS JENKINS ICI
                     withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-creds',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
+                        credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
                     )]) {
-                        sh '''
-                        set -e
-                        echo "📤 Pushing Docker image to Docker Hub..."
-                        
-                        # Afficher les images AVEC le registry prefix
-                        echo "📋 Images disponibles avant push:"
-                        docker images | grep "${DOCKER_REGISTRY}/${DOCKER_IMAGE}" || echo "Aucune image trouvée avec le préfixe registry"
-                        
-                        # Vérification finale avant push
-                        echo "🔍 Final verification before push..."
-                        if ! docker inspect ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} >/dev/null 2>&1; then
-                            echo "❌ CRITICAL: Image ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} not found for push"
-                            exit 1
-                        fi
-                        
-                        # Se connecter à Docker Hub
-                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-                        
-                        # Pousser les images avec vérification
-                        echo "🚀 Pushing ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
-                        docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
-                        
-                        echo "🚀 Pushing ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
-                        docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest
-                        
-                        echo "✅ Images pushed successfully to Docker Hub"
-                        '''
+                        sh """
+                            set -e
+                            echo "🔑 Logging into Docker Hub..."
+                            echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                            echo "📦 Pushing image tags: ${DOCKER_TAG} and latest"
+                            docker push ${fullImageName}
+                            docker push ${fullImageLatest}
+                            echo "✅ Image successfully pushed to Docker Hub"
+                            docker logout
+                        """
                     }
                 }
             }
         }
+
 
         stage('Deploy to Production') {
             when {
@@ -304,44 +234,44 @@ pipeline {
                                 APP_PORT='${APP_PORT}'
                                 DOCKER_REGISTRY='${DOCKER_REGISTRY}'
                                 CONTAINER_UID='${CONTAINER_UID}'
-        
+
                                 echo '🔄 Stopping existing container...'
-                                docker stop \\${APP_NAME} 2>/dev/null || echo 'No container to stop'
-                                docker rm \\${APP_NAME} 2>/dev/null || echo 'No container to remove'
+                                docker stop \${APP_NAME} 2>/dev/null || echo 'No container to stop'
+                                docker rm \${APP_NAME} 2>/dev/null || echo 'No container to remove'
                                 
                                 echo '📥 Pulling latest image...'
-                                docker pull \\${DOCKER_REGISTRY}/\\${APP_NAME}:latest
+                                docker pull \${DOCKER_REGISTRY}/\${APP_NAME}:latest
                                 
                                 echo '🚀 Starting new container...'
                                 docker run -d \\
-                                    --name \\${APP_NAME} \\
-                                    -p \\${APP_PORT}:\\${APP_PORT} \\
+                                    --name \${APP_NAME} \\
+                                    -p \${APP_PORT}:\${APP_PORT} \\
                                     --restart unless-stopped \\
                                     --security-opt=no-new-privileges:true \\
                                     --read-only \\
                                     --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
                                     --tmpfs /var/run:rw,noexec,nosuid,size=16m \\
                                     --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=32m \\
-                                    --user \\${CONTAINER_UID} \\
-                                    --health-cmd='curl -f http://localhost:\\${APP_PORT}/ || exit 1' \\
+                                    --user \${CONTAINER_UID} \\
+                                    --health-cmd='/healthcheck.sh' \\
                                     --health-interval=30s \\
                                     --health-timeout=10s \\
                                     --health-retries=3 \\
-                                    \\${DOCKER_REGISTRY}/\\${APP_NAME}:latest
+                                    \${DOCKER_REGISTRY}/\${APP_NAME}:latest
                                 
                                 echo '⏳ Waiting for application to start...'
                                 sleep 20
                                 
                                 echo '❤️ Checking container health...'
-                                CONTAINER_STATUS=\\$(docker inspect --format='{{.State.Health.Status}}' \\${APP_NAME} 2>/dev/null || echo 'unhealthy')
+                                CONTAINER_STATUS=\$(docker inspect --format='{{.State.Health.Status}}' \${APP_NAME} 2>/dev/null || echo 'unhealthy')
                                 
-                                if [ \"\\$CONTAINER_STATUS\" != \"healthy\" ]; then
+                                if [ \"\$CONTAINER_STATUS\" != \"healthy\" ]; then
                                     echo '❌ Container failed health check. Inspecting logs...'
-                                    docker logs \\${APP_NAME}
+                                    docker logs \${APP_NAME}
                                     exit 1
                                 fi
                                 
-                                echo \"✅ Deployment successful. Application is \\$CONTAINER_STATUS on port \\${APP_PORT}\"
+                                echo \"✅ Deployment successful. Application is \${CONTAINER_STATUS} on port \${APP_PORT}\"
                             "
                             '''
                         }
@@ -351,7 +281,7 @@ pipeline {
                 }
             }
         }
-    } // ← ACCOLADE FERMANTE MANQUANTE POUR STAGES
+    }
     
     post {
         always {
@@ -372,7 +302,7 @@ pipeline {
             script {
                 sh """
                 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "🎉 DEVSECOPS PIPELINE SUCCESS BY LAURENT"
+                echo "🎉 DEVSECOPS PIPELINE SUCCESS"
                 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                 echo ""
                 echo "📦 Build Information:"
