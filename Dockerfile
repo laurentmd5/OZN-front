@@ -7,13 +7,11 @@ ARG BUILD_VERSION=1.0.0
 
 # ====================================================================
 # STAGE 1: Build l'application Flutter
+# CORRECTION: Utilisation de l'image Flutter instrumentisto (Docker Hub)
 # ====================================================================
 FROM instrumentisto/flutter:${FLUTTER_VERSION} as builder
 
-# RÉDÉFINIR les ARG dans ce stage
-ARG BUILD_VERSION
-ARG FLUTTER_VERSION
-
+# Définition de l'utilisateur de construction et du répertoire de travail
 WORKDIR /app
 
 # Copie des fichiers de configuration et de dépendances
@@ -28,12 +26,12 @@ RUN set -e; \
     MAX_RETRIES=3; \
     echo "📦 Installing Flutter dependencies with retry logic..."; \
     until flutter pub get --verbose; do \
-        RETRY_COUNT=$((RETRY_COUNT+1)); \
-        if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then \
-            echo "❌ Failed to get dependencies after $MAX_RETRIES attempts."; \
+        RETRY_COUNT=$$((RETRY_COUNT+1)); \
+        if [ $$RETRY_COUNT -ge $$MAX_RETRIES ]; then \
+            echo "❌ Failed to get dependencies after $$MAX_RETRIES attempts."; \
             exit 1; \
         fi; \
-        echo "⚠️ pub get failed. Retrying in 10 seconds (Attempt $RETRY_COUNT of $MAX_RETRIES)..."; \
+        echo "⚠️ pub get failed. Retrying in 10 seconds (Attempt $$RETRY_COUNT of $$MAX_RETRIES)..."; \
         sleep 10; \
     done; \
     echo "✅ Dependencies installed successfully"
@@ -41,12 +39,11 @@ RUN set -e; \
 # Copie du reste du code source
 COPY . .
 
-# Construction de l'application Flutter pour le web - VERSION CORRIGÉE
+# Construction de l'application Flutter pour le web
 RUN set -eux; \
     echo "🔨 Building Flutter application for Web..."; \
-    echo "Build version: ${BUILD_VERSION}"; \
     flutter build web --release \
-        --dart-define=APP_BUILD_VERSION="${BUILD_VERSION}" \
+        --dart-define=APP_BUILD_VERSION=${BUILD_VERSION} \
         --web-renderer html \
         --base-href /; \
     echo "✅ Flutter build completed"
@@ -56,11 +53,10 @@ RUN set -eux; \
 # ====================================================================
 FROM nginx:alpine
 
-# RÉDÉFINIR les ARG dans ce stage
+# Arguments
 ARG NGINX_PORT
 ARG CONTAINER_USER
 ARG CONTAINER_UID
-ARG BUILD_VERSION
 
 # Création d'un groupe et d'un utilisateur non-root pour des raisons de sécurité
 RUN set -eux; \
