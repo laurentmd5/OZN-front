@@ -323,7 +323,7 @@ pipeline {
                                     --tmpfs /var/run:rw,noexec,nosuid,size=16m \\
                                     --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=32m \\
                                     --user \${CONTAINER_UID} \\
-                                    --health-cmd='/healthcheck.sh' \\
+                                    --health-cmd='curl -f http://localhost:${APP_PORT}/ || exit 1' \\
                                     --health-interval=30s \\
                                     --health-timeout=10s \\
                                     --health-retries=3 \\
