@@ -10,7 +10,10 @@ ARG BUILD_VERSION=1.0.0
 # ====================================================================
 FROM instrumentisto/flutter:${FLUTTER_VERSION} as builder
 
-# Définition de l'utilisateur de construction et du répertoire de travail
+# RÉDÉFINIR les ARG dans ce stage
+ARG BUILD_VERSION
+ARG FLUTTER_VERSION
+
 WORKDIR /app
 
 # Copie des fichiers de configuration et de dépendances
@@ -19,7 +22,7 @@ COPY pubspec.yaml pubspec.lock ./
 # Installation des outils nécessaires
 RUN apt-get update && apt-get install -y --no-install-recommends bash curl && rm -rf /var/lib/apt/lists/*
 
-# Logique de réessai pour flutter pub get - CORRIGÉE
+# Logique de réessai pour flutter pub get
 RUN set -e; \
     RETRY_COUNT=0; \
     MAX_RETRIES=3; \
@@ -38,11 +41,12 @@ RUN set -e; \
 # Copie du reste du code source
 COPY . .
 
-# Construction de l'application Flutter pour le web
+# Construction de l'application Flutter pour le web - VERSION CORRIGÉE
 RUN set -eux; \
     echo "🔨 Building Flutter application for Web..."; \
+    echo "Build version: ${BUILD_VERSION}"; \
     flutter build web --release \
-        --dart-define=APP_BUILD_VERSION=${BUILD_VERSION} \
+        --dart-define=APP_BUILD_VERSION="${BUILD_VERSION}" \
         --web-renderer html \
         --base-href /; \
     echo "✅ Flutter build completed"
@@ -52,10 +56,11 @@ RUN set -eux; \
 # ====================================================================
 FROM nginx:alpine
 
-# Arguments
+# RÉDÉFINIR les ARG dans ce stage
 ARG NGINX_PORT
 ARG CONTAINER_USER
 ARG CONTAINER_UID
+ARG BUILD_VERSION
 
 # Création d'un groupe et d'un utilisateur non-root pour des raisons de sécurité
 RUN set -eux; \
