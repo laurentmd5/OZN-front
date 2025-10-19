@@ -161,83 +161,51 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('🛠 Build & Push Docker Image') {
             steps {
                 script {
-                    try {
-                        sh '''
+                    echo "🏗️ Starting Docker build and push process..."
+                    
+                    // --- Variables ---
+                    def imageName = "${DOCKER_IMAGE}:${DOCKER_TAG}"
+                    def imageLatest = "${DOCKER_IMAGE}:latest"
+                    def fullImageName = "${DOCKER_REGISTRY}/${imageName}"
+                    def fullImageLatest = "${DOCKER_REGISTRY}/${imageLatest}"
+    
+                    echo "🔧 Building Docker image: ${fullImageName}"
+    
+                    // --- Docker Build ---
+                    sh """
                         set -e
-                        echo "🐳 Building Docker Image (Multi-Stage Build)"
-                        
-                        mkdir -p "${BUILD_DIR}"
-                        export DOCKER_BUILDKIT=0
-                        
-                        echo "🔨 Building image with arguments..."
-                        docker build \
-                            --pull \
-                            --build-arg NGINX_PORT=${APP_PORT} \
-                            --build-arg FLUTTER_VERSION=${FLUTTER_VERSION} \
-                            --build-arg CONTAINER_USER=${CONTAINER_USER} \
-                            --build-arg CONTAINER_UID=${CONTAINER_UID} \
-                            --build-arg BUILD_VERSION=${BUILD_VERSION} \
-                            -t ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} \
-                            -t ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest \
-                            --label "build.number=${BUILD_NUMBER}" \
-                            --label "build.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                            --label "version=${BUILD_VERSION}" \
-                            . | tee "${BUILD_DIR}/docker-build.log"
-                        
+                        echo "🚧 Building image ${fullImageName}..."
+                        docker build -t ${fullImageName} .
+                        docker tag ${fullImageName} ${fullImageLatest}
                         echo "✅ Docker build finished successfully."
+                    """
+    
+                    // --- Verification ---
+                    sh """
                         echo "🔍 Listing images for verification:"
-                        docker images ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
-                        
-                        # Validation stricte
-                        if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"; then
-                            echo "❌ ERROR: Docker image tag ${DOCKER_TAG} not found locally after build!"
-                            exit 1
-                        fi
-                        
-                        echo "✅ Image verified locally: ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
-                        '''
-                    } catch (Exception e) {
-                        error("❌ Docker build failed: ${e.message}")
-                    }
+                        docker images ${DOCKER_IMAGE}
+                        docker images --format '{{.Repository}}:{{.Tag}}' | grep -q ${DOCKER_IMAGE}:${DOCKER_TAG} \
+                            || (echo "❌ ERROR: Docker image tag ${DOCKER_TAG} not found locally after build!" && exit 1)
+                    """
+    
+                    // --- Push to Docker Hub ---
+                    sh """
+                        set -e
+                        echo "🔑 Logging into Docker Hub..."
+                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                        echo "📦 Pushing image tags: ${DOCKER_TAG} and latest"
+                        docker push ${fullImageName}
+                        docker push ${fullImageLatest}
+                        echo "✅ Image successfully pushed to Docker Hub"
+                        docker logout
+                    """
                 }
             }
         }
-        
-        stage('Push Docker Image') {
-            steps {
-                script {
-                    try {
-                        echo "📤 Pushing Docker Image to Docker Hub..."
-                        withCredentials([usernamePassword(
-                            credentialsId: "${DOCKER_CREDENTIALS_ID}",
-                            usernameVariable: 'DOCKER_USER',
-                            passwordVariable: 'DOCKER_PASS'
-                        )]) {
-                            sh '''
-                            set -e
-                            echo "🔑 Logging into Docker Hub..."
-                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                            
-                            echo "📦 Verifying image existence before push..."
-                            docker images | grep "${DOCKER_IMAGE}" || (echo "❌ Image not found locally!"; exit 1)
-                            
-                            echo "📦 Pushing image tags: ${DOCKER_TAG} and latest"
-                            docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
-                            docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest
-                            
-                            echo "✅ Image successfully pushed to Docker Hub"
-                            docker logout
-                            '''
-                        }
-                    } catch (Exception e) {
-                        error("❌ Docker push failed: ${e.message}")
-                    }
-                }
-            }
-        }
+
 
         stage('Deploy to Production') {
             when {
