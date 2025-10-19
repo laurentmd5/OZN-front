@@ -44,7 +44,6 @@ RUN set -eux; \
     echo "🔨 Building Flutter application for Web..."; \
     flutter build web --release \
         --dart-define=APP_BUILD_VERSION=${BUILD_VERSION} \
-        --web-renderer html \
         --base-href /; \
     echo "✅ Flutter build completed"
 
