@@ -372,7 +372,7 @@ pipeline {
             script {
                 sh """
                 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "🎉 DEVSECOPS PIPELINE SUCCESS"
+                echo "🎉 DEVSECOPS PIPELINE SUCCESS BY LAURENT"
                 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                 echo ""
                 echo "📦 Build Information:"
