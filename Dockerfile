@@ -7,11 +7,12 @@ ARG BUILD_VERSION=1.0.0
 
 # ====================================================================
 # STAGE 1: Build l'application Flutter
-# CORRECTION: Utilisation de l'image Flutter instrumentisto (Docker Hub)
 # ====================================================================
 FROM instrumentisto/flutter:${FLUTTER_VERSION} as builder
 
-# Définition de l'utilisateur de construction et du répertoire de travail
+# RÉDÉFINIR les ARG dans ce stage
+ARG BUILD_VERSION
+
 WORKDIR /app
 
 # Copie des fichiers de configuration et de dépendances
@@ -20,21 +21,9 @@ COPY pubspec.yaml pubspec.lock ./
 # Installation des outils nécessaires
 RUN apt-get update && apt-get install -y --no-install-recommends bash curl && rm -rf /var/lib/apt/lists/*
 
-# Logique de réessai pour flutter pub get
-RUN set -e; \
-    RETRY_COUNT=0; \
-    MAX_RETRIES=3; \
-    echo "📦 Installing Flutter dependencies with retry logic..."; \
-    until flutter pub get --verbose; do \
-        RETRY_COUNT=$((RETRY_COUNT+1)); \
-        if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then \
-            echo "❌ Failed to get dependencies after $MAX_RETRIES attempts."; \
-            exit 1; \
-        fi; \
-        echo "⚠️ pub get failed. Retrying in 10 seconds (Attempt $RETRY_COUNT of $MAX_RETRIES)..."; \
-        sleep 10; \
-    done; \
-    echo "✅ Dependencies installed successfully"
+# Installation SIMPLIFIÉE des dépendances Flutter
+RUN echo "📦 Installing Flutter dependencies..." && \
+    flutter pub get --verbose
 
 # Copie du reste du code source
 COPY . .
@@ -43,7 +32,7 @@ COPY . .
 RUN set -eux; \
     echo "🔨 Building Flutter application for Web..."; \
     flutter build web --release \
-        --dart-define=APP_BUILD_VERSION=${BUILD_VERSION} \
+        --dart-define=APP_BUILD_VERSION="${BUILD_VERSION}" \
         --web-renderer html \
         --base-href /; \
     echo "✅ Flutter build completed"
@@ -53,7 +42,7 @@ RUN set -eux; \
 # ====================================================================
 FROM nginx:alpine
 
-# Arguments
+# RÉDÉFINIR les ARG dans ce stage
 ARG NGINX_PORT
 ARG CONTAINER_USER
 ARG CONTAINER_UID
