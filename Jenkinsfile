@@ -166,15 +166,13 @@ pipeline {
                 script {
                     echo "🏗️ Starting Docker build and push process..."
                     
-                    // --- Variables ---
                     def imageName = "${DOCKER_IMAGE}:${DOCKER_TAG}"
                     def imageLatest = "${DOCKER_IMAGE}:latest"
                     def fullImageName = "${DOCKER_REGISTRY}/${imageName}"
                     def fullImageLatest = "${DOCKER_REGISTRY}/${imageLatest}"
-    
+        
                     echo "🔧 Building Docker image: ${fullImageName}"
-    
-                    // --- Docker Build ---
+        
                     sh """
                         set -e
                         echo "🚧 Building image ${fullImageName}..."
@@ -182,26 +180,31 @@ pipeline {
                         docker tag ${fullImageName} ${fullImageLatest}
                         echo "✅ Docker build finished successfully."
                     """
-    
-                    // --- Verification ---
+        
                     sh """
                         echo "🔍 Listing images for verification:"
                         docker images ${DOCKER_IMAGE}
                         docker images --format '{{.Repository}}:{{.Tag}}' | grep -q ${DOCKER_IMAGE}:${DOCKER_TAG} \
                             || (echo "❌ ERROR: Docker image tag ${DOCKER_TAG} not found locally after build!" && exit 1)
                     """
-    
-                    // --- Push to Docker Hub ---
-                    sh """
-                        set -e
-                        echo "🔑 Logging into Docker Hub..."
-                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
-                        echo "📦 Pushing image tags: ${DOCKER_TAG} and latest"
-                        docker push ${fullImageName}
-                        docker push ${fullImageLatest}
-                        echo "✅ Image successfully pushed to Docker Hub"
-                        docker logout
-                    """
+        
+                    // 🔑 UTILISER LES CREDENTIALS JENKINS ICI
+                    withCredentials([usernamePassword(
+                        credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            set -e
+                            echo "🔑 Logging into Docker Hub..."
+                            echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                            echo "📦 Pushing image tags: ${DOCKER_TAG} and latest"
+                            docker push ${fullImageName}
+                            docker push ${fullImageLatest}
+                            echo "✅ Image successfully pushed to Docker Hub"
+                            docker logout
+                        """
+                    }
                 }
             }
         }
