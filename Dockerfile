@@ -60,10 +60,6 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Copie des artefacts de construction depuis le stage 'builder'
 COPY --from=builder /app/build/web /usr/share/nginx/html
 
-# Copie du script de healthcheck
-COPY healthcheck.sh /healthcheck.sh
-RUN chmod +x /healthcheck.sh
-
 # Configuration de l'utilisateur par défaut
 USER ${CONTAINER_USER}
 WORKDIR /usr/share/nginx/html
