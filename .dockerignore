@@ -76,3 +76,6 @@ windows/
 .flutter-plugins
 .flutter-plugins-dependencies
 .metadata
+
+!healthcheck.sh
+!nginx.conf
