@@ -19,6 +19,7 @@ pipeline {
         DOCKER_REGISTRY = 'laurentmd5'
         DOCKER_IMAGE = "${APP_NAME}"
         DOCKER_TAG = "${env.BUILD_NUMBER}"
+        DOCKER_CREDENTIALS_ID = 'docker-hub-creds'
         
         // Configuration Chemins
         WORKSPACE_DIR = "${WORKSPACE}"
