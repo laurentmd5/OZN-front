@@ -169,43 +169,35 @@ pipeline {
                         set -e
                         echo "🐳 Building Docker Image (Multi-Stage Build)"
                         
-                        # S'assurer que le répertoire de build existe
                         mkdir -p "${BUILD_DIR}"
-                        
-                        # Désactiver BuildKit pour éviter les erreurs
                         export DOCKER_BUILDKIT=0
                         
                         echo "🔨 Building image with arguments..."
-                        echo "   - Flutter Version: ${FLUTTER_VERSION}"
-                        echo "   - Port: ${APP_PORT}"
-                        echo "   - Registry: ${DOCKER_REGISTRY}"
-                        echo "   - Image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                        
-                        # Construction sans BuildKit
-                        if ! docker build \
+                        docker build \
                             --pull \
                             --build-arg NGINX_PORT=${APP_PORT} \
                             --build-arg FLUTTER_VERSION=${FLUTTER_VERSION} \
                             --build-arg CONTAINER_USER=${CONTAINER_USER} \
                             --build-arg CONTAINER_UID=${CONTAINER_UID} \
                             --build-arg BUILD_VERSION=${BUILD_VERSION} \
-                            --tag ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} \
-                            --tag ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest \
+                            -t ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} \
+                            -t ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest \
                             --label "build.number=${BUILD_NUMBER}" \
                             --label "build.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
                             --label "version=${BUILD_VERSION}" \
-                            . 2>&1 | tee "${BUILD_DIR}/docker-build.log"; then
-                            echo "❌ Docker build failed"
-                            echo "=== Dernières lignes du log ==="
-                            tail -20 "${BUILD_DIR}/docker-build.log"
+                            . | tee "${BUILD_DIR}/docker-build.log"
+                        
+                        echo "✅ Docker build finished successfully."
+                        echo "🔍 Listing images for verification:"
+                        docker images ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
+                        
+                        # Validation stricte
+                        if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"; then
+                            echo "❌ ERROR: Docker image tag ${DOCKER_TAG} not found locally after build!"
                             exit 1
                         fi
                         
-                        echo "✅ Docker image built successfully"
-                        
-                        # Vérification de l'image
-                        echo "🔍 Verifying Docker image..."
-                        docker images | grep "${DOCKER_IMAGE}" || echo "Image verification failed"
+                        echo "✅ Image verified locally: ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
                         '''
                     } catch (Exception e) {
                         error("❌ Docker build failed: ${e.message}")
@@ -213,7 +205,7 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Push Docker Image') {
             steps {
                 script {
@@ -228,11 +220,14 @@ pipeline {
                             set -e
                             echo "🔑 Logging into Docker Hub..."
                             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-        
+                            
+                            echo "📦 Verifying image existence before push..."
+                            docker images | grep "${DOCKER_IMAGE}" || (echo "❌ Image not found locally!"; exit 1)
+                            
                             echo "📦 Pushing image tags: ${DOCKER_TAG} and latest"
                             docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
                             docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest
-        
+                            
                             echo "✅ Image successfully pushed to Docker Hub"
                             docker logout
                             '''
@@ -242,7 +237,7 @@ pipeline {
                     }
                 }
             }
-        }        
+        }
 
         stage('Deploy to Production') {
             when {
