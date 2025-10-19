@@ -1,3 +1,8 @@
+# ====================================================================
+# 🌍 DOCKERFILE MULTI-STAGE — FLUTTER WEB + NGINX
+#
+# ====================================================================
+
 # Définition des arguments de construction (ARG)
 ARG NGINX_PORT=8090
 ARG FLUTTER_VERSION=3.35.6
@@ -7,18 +12,18 @@ ARG BUILD_VERSION=1.0.0
 
 # ====================================================================
 # STAGE 1: Build l'application Flutter
-# CORRECTION: Utilisation de l'image Flutter instrumentisto (Docker Hub)
 # ====================================================================
 FROM instrumentisto/flutter:${FLUTTER_VERSION} as builder
 
-# Définition de l'utilisateur de construction et du répertoire de travail
 WORKDIR /app
 
 # Copie des fichiers de configuration et de dépendances
 COPY pubspec.yaml pubspec.lock ./
 
 # Installation des outils nécessaires
-RUN apt-get update && apt-get install -y --no-install-recommends bash curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash curl ca-certificates git unzip xz-utils zip && \
+    rm -rf /var/lib/apt/lists/*
 
 # Logique de réessai pour flutter pub get
 RUN set -e; \
@@ -68,14 +73,14 @@ RUN set -eux; \
 # Copie de la configuration NGINX
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copie des artefacts de construction depuis le stage 'builder'
+# Copie des artefacts de build depuis le stage 'builder'
 COPY --from=builder /app/build/web /usr/share/nginx/html
 
-# Copie du script de healthcheck
-COPY healthcheck.sh /healthcheck.sh
-RUN chmod +x /healthcheck.sh
+# Permissions de sécurité
+RUN chown -R ${CONTAINER_USER}:${CONTAINER_USER} /usr/share/nginx/html && \
+    chmod -R 755 /usr/share/nginx/html
 
-# Configuration de l'utilisateur par défaut
+# Configuration de l'utilisateur par défaut (non-root)
 USER ${CONTAINER_USER}
 WORKDIR /usr/share/nginx/html
 
