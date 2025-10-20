@@ -13,7 +13,6 @@ ARG BUILD_VERSION=1.0.0
 FROM instrumentisto/flutter:${FLUTTER_VERSION} as builder
 
 ARG BUILD_VERSION
-
 WORKDIR /app
 
 # Copier les fichiers de configuration et dépendances
@@ -45,14 +44,17 @@ ARG NGINX_PORT
 ARG CONTAINER_USER
 ARG CONTAINER_UID
 
+# Installer curl pour les healthchecks
+RUN apk add --no-cache curl
+
 # Créer utilisateur non-root et répertoires nécessaires
 RUN set -eux; \
     addgroup -g ${CONTAINER_UID} ${CONTAINER_USER}; \
     adduser -u ${CONTAINER_UID} -G ${CONTAINER_USER} -D ${CONTAINER_USER}; \
     # Créer répertoires que NGINX doit écrire
-    mkdir -p /var/cache/nginx/client_temp /var/run/nginx /var/log/nginx /tmp; \
-    chown -R ${CONTAINER_USER}:${CONTAINER_USER} /var/cache/nginx /var/run/nginx /var/log/nginx /tmp /usr/share/nginx/html; \
-    chmod -R 775 /var/cache/nginx /var/run/nginx /var/log/nginx /tmp /usr/share/nginx/html
+    mkdir -p /var/cache/nginx/client_temp /var/log/nginx /tmp; \
+    chown -R ${CONTAINER_USER}:${CONTAINER_USER} /var/cache/nginx /var/log/nginx /tmp /usr/share/nginx/html; \
+    chmod -R 775 /var/cache/nginx /var/log/nginx /tmp /usr/share/nginx/html
 
 # Copier configuration NGINX
 COPY nginx.conf /etc/nginx/nginx.conf
@@ -69,6 +71,14 @@ RUN chown -R ${CONTAINER_USER}:${CONTAINER_USER} /usr/share/nginx/html
 # Supprimer la directive 'user' dans nginx.conf si présente pour éviter warnings
 RUN sed -i '/^user /d' /etc/nginx/nginx.conf
 
+# Créer un script d'entrée personnalisé
+RUN echo '#!/bin/sh' > /docker-entrypoint-custom.sh && \
+    echo 'set -e' >> /docker-entrypoint-custom.sh && \
+    echo 'mkdir -p /var/run/nginx /var/cache/nginx /tmp' >> /docker-entrypoint-custom.sh && \
+    echo 'exec nginx -g "daemon off;"' >> /docker-entrypoint-custom.sh && \
+    chmod +x /docker-entrypoint-custom.sh && \
+    chown ${CONTAINER_USER}:${CONTAINER_USER} /docker-entrypoint-custom.sh
+
 # Passer à l'utilisateur non-root
 USER ${CONTAINER_USER}
 
@@ -77,5 +87,5 @@ WORKDIR /usr/share/nginx/html
 # Exposer le port NGINX
 EXPOSE ${NGINX_PORT}
 
-# Démarrage NGINX
-CMD ["nginx", "-g", "daemon off;"]
+# Utiliser le script d'entrée personnalisé
+ENTRYPOINT ["/docker-entrypoint-custom.sh"]
