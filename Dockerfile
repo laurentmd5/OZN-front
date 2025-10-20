@@ -1,4 +1,6 @@
-# Définition des arguments de construction (ARG)
+# --------------------------------------------------------------------
+# Arguments de build
+# --------------------------------------------------------------------
 ARG NGINX_PORT=8090
 ARG FLUTTER_VERSION=3.35.6
 ARG CONTAINER_USER=oznapp
@@ -10,25 +12,23 @@ ARG BUILD_VERSION=1.0.0
 # ====================================================================
 FROM instrumentisto/flutter:${FLUTTER_VERSION} as builder
 
-# RÉDÉFINIR les ARG dans ce stage
 ARG BUILD_VERSION
 
 WORKDIR /app
 
-# Copie des fichiers de configuration et de dépendances
+# Copier les fichiers de configuration et dépendances
 COPY pubspec.yaml pubspec.lock ./
 
-# Installation des outils nécessaires
+# Installer outils nécessaires
 RUN apt-get update && apt-get install -y --no-install-recommends bash curl && rm -rf /var/lib/apt/lists/*
 
-# Installation SIMPLIFIÉE des dépendances Flutter
-RUN echo "📦 Installing Flutter dependencies..." && \
-    flutter pub get --verbose
+# Installer les dépendances Flutter
+RUN echo "📦 Installing Flutter dependencies..." && flutter pub get --verbose
 
-# Copie du reste du code source
+# Copier le code source
 COPY . .
 
-# Construction de l'application Flutter pour le web
+# Build Flutter Web
 RUN set -eux; \
     echo "🔨 Building Flutter application for Web..."; \
     flutter build web --release \
@@ -37,41 +37,45 @@ RUN set -eux; \
     echo "✅ Flutter build completed"
 
 # ====================================================================
-# STAGE 2: Production (Image NGINX légère)
+# STAGE 2: Production NGINX
 # ====================================================================
 FROM nginx:alpine
 
-# RÉDÉFINIR les ARG dans ce stage
 ARG NGINX_PORT
 ARG CONTAINER_USER
 ARG CONTAINER_UID
 
-# Création d'un groupe et d'un utilisateur non-root pour des raisons de sécurité
+# Créer utilisateur non-root et répertoires nécessaires
 RUN set -eux; \
     addgroup -g ${CONTAINER_UID} ${CONTAINER_USER}; \
     adduser -u ${CONTAINER_UID} -G ${CONTAINER_USER} -D ${CONTAINER_USER}; \
-    mkdir -p /var/cache/nginx/client_temp /var/run /var/log/nginx /tmp; \
-    chown -R ${CONTAINER_USER}:${CONTAINER_USER} /var/cache/nginx /var/run /var/log/nginx /tmp; \
-    chmod -R 775 /var/cache/nginx /var/run /var/log/nginx /tmp /etc/nginx/conf.d
+    # Créer répertoires que NGINX doit écrire
+    mkdir -p /var/cache/nginx/client_temp /var/run/nginx /var/log/nginx /tmp; \
+    chown -R ${CONTAINER_USER}:${CONTAINER_USER} /var/cache/nginx /var/run/nginx /var/log/nginx /tmp /usr/share/nginx/html; \
+    chmod -R 775 /var/cache/nginx /var/run/nginx /var/log/nginx /tmp /usr/share/nginx/html
 
-# Copie de la configuration NGINX
+# Copier configuration NGINX
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Remplacement dynamique du port dans nginx.conf
+# Remplacer le port dynamique
 RUN sed -i "s/\${NGINX_PORT}/${NGINX_PORT}/g" /etc/nginx/nginx.conf
 
-# Copie des artefacts de construction depuis le stage 'builder'
+# Copier les fichiers Flutter construits
 COPY --from=builder /app/build/web /usr/share/nginx/html
 
-# Permissions correctes
+# Permissions utilisateur final
 RUN chown -R ${CONTAINER_USER}:${CONTAINER_USER} /usr/share/nginx/html
 
-# Configuration de l'utilisateur par défaut
+# Supprimer la directive 'user' dans nginx.conf si présente pour éviter warnings
+RUN sed -i '/^user /d' /etc/nginx/nginx.conf
+
+# Passer à l'utilisateur non-root
 USER ${CONTAINER_USER}
+
 WORKDIR /usr/share/nginx/html
 
-# Port exposé
+# Exposer le port NGINX
 EXPOSE ${NGINX_PORT}
 
-# Commande par défaut pour démarrer NGINX
+# Démarrage NGINX
 CMD ["nginx", "-g", "daemon off;"]
