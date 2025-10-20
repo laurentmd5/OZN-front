@@ -248,7 +248,6 @@ pipeline {
                                     -p \${APP_PORT}:\${APP_PORT} \\
                                     --restart unless-stopped \\
                                     --security-opt=no-new-privileges:true \\
-                                    --read-only \\
                                     --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
                                     --tmpfs /var/run:rw,noexec,nosuid,size=16m \\
                                     --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=32m \\
