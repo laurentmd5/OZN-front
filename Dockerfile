@@ -52,13 +52,19 @@ RUN set -eux; \
     adduser -u ${CONTAINER_UID} -G ${CONTAINER_USER} -D ${CONTAINER_USER}; \
     mkdir -p /var/cache/nginx/client_temp /var/run /var/log/nginx /tmp; \
     chown -R ${CONTAINER_USER}:${CONTAINER_USER} /var/cache/nginx /var/run /var/log/nginx /tmp; \
-    chmod -R 775 /var/cache/nginx /var/run /var/log/nginx /tmp
+    chmod -R 775 /var/cache/nginx /var/run /var/log/nginx /tmp /etc/nginx/conf.d
 
 # Copie de la configuration NGINX
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Remplacement dynamique du port dans nginx.conf
+RUN sed -i "s/\${NGINX_PORT}/${NGINX_PORT}/g" /etc/nginx/nginx.conf
+
 # Copie des artefacts de construction depuis le stage 'builder'
 COPY --from=builder /app/build/web /usr/share/nginx/html
+
+# Permissions correctes
+RUN chown -R ${CONTAINER_USER}:${CONTAINER_USER} /usr/share/nginx/html
 
 # Configuration de l'utilisateur par défaut
 USER ${CONTAINER_USER}
