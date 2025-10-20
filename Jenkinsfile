@@ -313,19 +313,20 @@ pipeline {
                                 docker pull \\${DOCKER_REGISTRY}/\\${APP_NAME}:latest
         
                                 echo '🚀 Starting new container...'
-                                docker run -d \\
-                                    --name \\${APP_NAME} \\
-                                    -p \\${APP_PORT}:\\${APP_PORT} \\
-                                    --restart unless-stopped \\
-                                    --security-opt=no-new-privileges:true \\
-                                    --tmpfs /tmp:rw,noexec,nosuid,size=64m,uid=\\${CONTAINER_UID} \\
-                                    --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=32m,uid=\\${CONTAINER_UID} \\
-                                    --user \\${CONTAINER_UID} \\
-                                    --health-cmd='curl -f http://localhost:\\${APP_PORT}/ || exit 1' \\
-                                    --health-interval=30s \\
-                                    --health-timeout=10s \\
-                                    --health-retries=3 \\
-                                    \\${DOCKER_REGISTRY}/\\${APP_NAME}:latest
+                                docker run -d \
+                                    --name ${APP_NAME} \
+                                    -p ${APP_PORT}:${APP_PORT} \
+                                    --restart unless-stopped \
+                                    --security-opt=no-new-privileges:true \
+                                    --tmpfs /tmp:rw,noexec,nosuid,size=64m,uid=${CONTAINER_UID} \
+                                    --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=32m,uid=${CONTAINER_UID} \
+                                    --user ${CONTAINER_UID} \
+                                    --health-cmd="curl -f http://localhost:${APP_PORT}/index.html || exit 1" \
+                                    --health-interval=20s \
+                                    --health-start-period=25s \
+                                    --health-timeout=10s \
+                                    --health-retries=3 \
+                                    ${DOCKER_REGISTRY}/${APP_NAME}:latest                     
         
                                 echo '⏳ Waiting for application to start...'
                                 sleep 20
