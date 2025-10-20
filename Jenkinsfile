@@ -319,9 +319,7 @@ pipeline {
                                     --restart unless-stopped \\
                                     --security-opt=no-new-privileges:true \\
                                     --tmpfs /tmp:rw,noexec,nosuid,size=64m,uid=\\${CONTAINER_UID} \\
-                                    --tmpfs /var/run:rw,noexec,nosuid,size=16m,uid=\\${CONTAINER_UID} \\
                                     --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=32m,uid=\\${CONTAINER_UID} \\
-                                    --tmpfs /etc/nginx/conf.d:rw,noexec,nosuid,uid=\\${CONTAINER_UID} \\
                                     --user \\${CONTAINER_UID} \\
                                     --health-cmd='curl -f http://localhost:\\${APP_PORT}/ || exit 1' \\
                                     --health-interval=30s \\
