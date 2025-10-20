@@ -298,7 +298,7 @@ pipeline {
                             
                             ssh -i $SSH_KEY -o StrictHostKeyChecking=no ${DEPLOY_SERVER} "
                                 set -e
-                                
+        
                                 DEPLOY_PATH='${DEPLOY_PATH}'
                                 APP_NAME='${APP_NAME}'
                                 APP_PORT='${APP_PORT}'
@@ -308,38 +308,40 @@ pipeline {
                                 echo '🔄 Stopping existing container...'
                                 docker stop \\${APP_NAME} 2>/dev/null || echo 'No container to stop'
                                 docker rm \\${APP_NAME} 2>/dev/null || echo 'No container to remove'
-                                
+        
                                 echo '📥 Pulling latest image...'
                                 docker pull \\${DOCKER_REGISTRY}/\\${APP_NAME}:latest
-                                
+        
                                 echo '🚀 Starting new container...'
                                 docker run -d \\
                                     --name \\${APP_NAME} \\
                                     -p \\${APP_PORT}:\\${APP_PORT} \\
                                     --restart unless-stopped \\
                                     --security-opt=no-new-privileges:true \\
-                                    --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
-                                    --tmpfs /var/run:rw,noexec,nosuid,size=16m \\
-                                    --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=32m \\
+                                    --read-only \\
+                                    --tmpfs /tmp:rw,noexec,nosuid,size=64m,uid=\\${CONTAINER_UID} \\
+                                    --tmpfs /var/run:rw,noexec,nosuid,size=16m,uid=\\${CONTAINER_UID} \\
+                                    --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=32m,uid=\\${CONTAINER_UID} \\
+                                    --tmpfs /etc/nginx/conf.d:rw,noexec,nosuid,uid=\\${CONTAINER_UID} \\
                                     --user \\${CONTAINER_UID} \\
                                     --health-cmd='curl -f http://localhost:\\${APP_PORT}/ || exit 1' \\
                                     --health-interval=30s \\
                                     --health-timeout=10s \\
                                     --health-retries=3 \\
                                     \\${DOCKER_REGISTRY}/\\${APP_NAME}:latest
-                                
+        
                                 echo '⏳ Waiting for application to start...'
                                 sleep 20
-                                
+        
                                 echo '❤️ Checking container health...'
                                 CONTAINER_STATUS=\\$(docker inspect --format='{{.State.Health.Status}}' \\${APP_NAME} 2>/dev/null || echo 'unhealthy')
-                                
+        
                                 if [ \"\\$CONTAINER_STATUS\" != \"healthy\" ]; then
                                     echo '❌ Container failed health check. Inspecting logs...'
                                     docker logs \\${APP_NAME}
                                     exit 1
                                 fi
-                                
+        
                                 echo \"✅ Deployment successful. Application is \\$CONTAINER_STATUS on port \\${APP_PORT}\"
                             "
                             '''
